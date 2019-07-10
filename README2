@@ -1,0 +1,54 @@
+2.升级控制器
+Room.Controller，控制器
+升级Controller，解锁更多装置
+
+通过增加creep来升级controller
+自动生成creeps
+设置creep的memory
+
+检查creeps的memory，其实memory就是每个creep的属性之一
+通过增加controller的能量来升级
+
+新建module role.upgrader
+
+var roleUpgrader = {
+
+    /** @param {Creep} creep **/
+    run: function(creep) {
+	    if(creep.carry.energy == 0) {//只要有一点能量就停止采集，中间就不断徘徊，可能策略就是为了不要升级太快，不要让能量过多的流向Controller
+            var sources = creep.room.find(FIND_SOURCES);
+            if(creep.harvest(sources[0]) == ERR_NOT_IN_RANGE) {
+                creep.moveTo(sources[0]);
+            }
+        }
+        else {
+            if(creep.upgradeController(creep.room.controller) == ERR_NOT_IN_RANGE) {
+                creep.moveTo(creep.room.controller);
+            }
+        }
+	}
+};
+
+module.exports = roleUpgrader;
+
+在main中，进行区分
+var roleHarvester = require('role.harvester');
+var roleUpgrader = require('role.upgrader');
+
+module.exports.loop = function () {
+
+    for(var name in Game.creeps) {
+        var creep = Game.creeps[name];
+        if(creep.memory.role == 'harvester') {
+            roleHarvester.run(creep);
+        }
+        if(creep.memory.role == 'upgrader') {
+            roleUpgrader.run(creep);
+        }
+    }
+}
+
+controller也是room中的一个节点，需要注入能量
+如果在20000个game ticks中还没升级Controller，那么Controller将会降一级
+level0的时候，失去对Controller的控制器，其他玩家可获得
+需保证至少有一个creeps定期upgradeController
