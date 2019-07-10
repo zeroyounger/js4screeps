@@ -1,0 +1,119 @@
+1.基本操作：
+
+spawn  孵化器
+creeps 爬行者
+通过spawnCreep方法来创造creep
+每个creep都有名字，body
+创建方式如：
+Game.spawns['Spawn1'].spawnCreep( [WORK, CARRY, MOVE], 'Harvester1' );
+其中，[WORK, CARRY, MOVE]是body的数组，Harvester1是creeps的名字
+Harvester1 收割者
+
+能量块
+creep可通过WORK来手机能量块，通过CARRY运回spawn
+
+脚本模式，Ctrl+Enter来运行，Alt+Enter切换下方面板
+
+module.exports.loop = function () {
+    var creep = Game.creeps['Harvester1'];
+    var sources = creep.room.find(FIND_SOURCES);
+    if(creep.harvest(sources[0]) == ERR_NOT_IN_RANGE) {
+        creep.moveTo(sources[0]);
+    }
+}
+
+通过Game.creeps['Harvester1']来获得creeps的实例，通过room.find(FIND_SOURCES)来找到source源
+room是creep的一个方法属性，
+find是room属性的一个方法，
+FIND_SOURCES是find的一个固定参数，用来找到能量块
+room.find方法只能用来寻找临近的能量块
+creep调用harvest方法来使creep感知到能量源，如果能找到，则调用creep的move方法
+
+creep到达后会自动采集
+
+返回：
+module.exports.loop = function () { //这是一个loop，所以会一直判断，一直采集，一直移动，所以moveTo放在harvest和transfer里面
+//当无法采集或者无法卸载时，移动
+    var creep = Game.creeps['Harvester1'];
+
+    //采集能量的方法
+    if(creep.carry.energy < creep.carryCapacity) {  //如果携带的能量小于容量
+        var sources = creep.room.find(FIND_SOURCES);//寻找最近的源
+        if(creep.harvest(sources[0]) == ERR_NOT_IN_RANGE) { //移动过去采集能量
+            creep.moveTo(sources[0]);
+        }
+    }
+    else {
+        if( creep.transfer(Game.spawns['Spawn1'], RESOURCE_ENERGY) == ERR_NOT_IN_RANGE ) { //如果携带的能量足够了
+            creep.moveTo(Game.spawns['Spawn1']); //返回spawn
+        }
+    }
+}
+
+
+每个creep都有1500个game ticks的寿命
+新建一个creep需要200点能量，当能量不足时，spawnCreep方法会返回错误码ERR_NOT_ENOUGH_ENERGY
+
+在Console中单次执行：
+Game.spawns['Spawn1'].spawnCreep( [WORK, CARRY, MOVE], 'Harvester2' );
+
+在脚本中则是loop，循环执行
+
+遍历所有的creep，执行方法：
+module.exports.loop = function () {
+    for(var name in Game.creeps) {//从creep数组中遍历creep的name
+        var creep = Game.creeps[name];//获得每一个creep实例
+
+        if(creep.carry.energy < creep.carryCapacity) {
+            var sources = creep.room.find(FIND_SOURCES);
+            if(creep.harvest(sources[0]) == ERR_NOT_IN_RANGE) {
+                creep.moveTo(sources[0]);
+            }
+        }
+        else {
+            if(creep.transfer(Game.spawns['Spawn1'], RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
+                creep.moveTo(Game.spawns['Spawn1']);
+            }
+        }
+    }
+}
+
+将公共部分抽离成一个module，新建role.harvester，在module.exports中定义一个run方法
+新建module的方法：定义一个对象，里面定义一个run方法，将对象export出去
+在其他文件中，通过var mod = require('role.Harvester');来导入，通过mod.thing == 'a thing'; // true 来执行方法
+可使用
+module.exports = {
+};
+来导出多个
+
+
+var roleHarvester = {
+
+    /** @param {Creep} creep **/
+    run: function(creep) {
+	    if(creep.carry.energy < creep.carryCapacity) {
+            var sources = creep.room.find(FIND_SOURCES);
+            if(creep.harvest(sources[0]) == ERR_NOT_IN_RANGE) {
+                creep.moveTo(sources[0]);
+            }
+        }
+        else {
+            if(creep.transfer(Game.spawns['Spawn1'], RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
+                creep.moveTo(Game.spawns['Spawn1']);
+            }
+        }
+	}
+};
+
+module.exports = roleHarvester;
+
+在main中，使用以下形式来调用：
+var roleHarvester = require('role.harvester');
+
+module.exports.loop = function () {
+
+    for(var name in Game.creeps) {
+        var creep = Game.creeps[name];
+        roleHarvester.run(creep);
+    }
+}
