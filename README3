@@ -1,0 +1,131 @@
+3.建筑新装备
+控制器升级后，可解锁一些装备，如walls（墙）, ramparts（防御土墙）, and extensions（延伸）
+extensions允许制造更大的creep
+一个creep只有一种type的work时，工作得很差
+如果一个creep携带多种WORK TYPE，则花费更高
+一个spawn最多只能有300点能量，要建造更高级的creep，需要先建造extensions
+
+每一级Controller有允许构建的extension的个数，级别越高，允许构建数越多
+extension可以放在房间任意位置，spawn使用extension时，无视距离
+
+structure也需要creep来建造，所以需要专门做这事的creep
+新建creep时，可以使用第三个参数来设定其memory
+
+
+Game.spawns['Spawn1'].spawnCreep( [WORK, CARRY, MOVE], 'Builder1',
+    { memory: { role: 'builder' } } );
+
+新建module  role.builder
+var roleBuilder = {
+
+    /** @param {Creep} creep **/
+    run: function(creep) {
+
+	    if(creep.memory.building && creep.carry.energy == 0) {
+            creep.memory.building = false;
+            creep.say('🔄 harvest');
+	    }
+	    if(!creep.memory.building && creep.carry.energy == creep.carryCapacity) {
+	        creep.memory.building = true;
+	        creep.say('🚧 build');//creep的会话框
+	    }
+
+	    if(creep.memory.building) {
+	        var targets = creep.room.find(FIND_CONSTRUCTION_SITES);//寻找最近的controller
+            if(targets.length) {
+                if(creep.build(targets[0]) == ERR_NOT_IN_RANGE) {//builder其实就是注入能量
+                    creep.moveTo(targets[0], {visualizePathStyle: {stroke: '#ffffff'}});//为路线可视化
+                }
+            }
+	    }
+	    else {
+	        var sources = creep.room.find(FIND_SOURCES);//寻找最近的源
+            if(creep.harvest(sources[0]) == ERR_NOT_IN_RANGE) {
+                creep.moveTo(sources[0], {visualizePathStyle: {stroke: '#ffaa00'}});
+            }
+	    }
+	}
+};
+
+module.exports = roleBuilder;
+
+即，为一个creep分配2种工作，通过flag来切换，，是否building
+
+main：
+var roleHarvester = require('role.harvester');
+var roleBuilder = require('role.builder');
+
+module.exports.loop = function () {
+
+    for(var name in Game.creeps) {
+        var creep = Game.creeps[name];
+        if(creep.memory.role == 'harvester') {
+            roleHarvester.run(creep);
+        }
+        if(creep.memory.role == 'builder') {
+            roleBuilder.run(creep);
+        }
+    }
+}
+
+
+creep不仅需要能能量送回spawn，也要把能量送到struct
+var roleHarvester = {
+
+    /** @param {Creep} creep **/
+    run: function(creep) {
+	    if(creep.carry.energy < creep.carryCapacity) {//收集能量
+            var sources = creep.room.find(FIND_SOURCES);
+            if(creep.harvest(sources[0]) == ERR_NOT_IN_RANGE) {
+                creep.moveTo(sources[0], {visualizePathStyle: {stroke: '#ffaa00'}});
+            }
+        }
+        else {
+            var targets = creep.room.find(FIND_STRUCTURES, {//寻找target
+                    filter: (structure) => { //过滤器，
+                        return (structure.structureType == STRUCTURE_EXTENSION || structure.structureType == STRUCTURE_SPAWN) &&
+                            structure.energy < structure.energyCapacity;
+                    }
+            });
+            if(targets.length > 0) {
+                if(creep.transfer(targets[0], RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
+                    creep.moveTo(targets[0], {visualizePathStyle: {stroke: '#ffffff'}});//moveTo会阻塞运行到到达目标节点？
+                }
+            }
+        }
+	}
+};
+
+module.exports = roleHarvester;
+
+
+
+得到room中所有能量点的数值：
+var roleHarvester = require('role.harvester');
+var roleBuilder = require('role.builder');
+
+module.exports.loop = function () {
+
+    for(var name in Game.rooms) {
+        console.log('Room "'+name+'" has '+Game.rooms[name].energyAvailable+' energy');//打印room内还有多少能量
+    }
+
+    for(var name in Game.creeps) {
+        var creep = Game.creeps[name];
+        if(creep.memory.role == 'harvester') {
+            roleHarvester.run(creep);
+        }
+        if(creep.memory.role == 'builder') {
+            roleBuilder.run(creep);
+        }
+    }
+}
+
+构建超强的creep：需要550点能量
+Game.spawns['Spawn1'].spawnCreep( [WORK,WORK,WORK,WORK,CARRY,MOVE,MOVE],
+    'HarvesterBig',
+    { memory: { role: 'harvester' } } );
+
+通过少数几个大的creep来替换多个小的creep，可节约CPU时间
+
+下一节将讲述如何构建自动生产的creep
